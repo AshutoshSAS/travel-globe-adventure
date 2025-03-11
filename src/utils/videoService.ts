@@ -1,47 +1,108 @@
 
 import { TravelJourney, VideoConfig } from '../types';
 
-// This is a mock video service that would normally use a real video creation API or library
-export default class VideoService {
+export class VideoService {
   private journey: TravelJourney;
   private config: VideoConfig;
   
-  constructor(journey: TravelJourney, config: VideoConfig) {
+  constructor(journey: TravelJourney, config: VideoConfig = {
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    duration: 5 // seconds per location
+  }) {
     this.journey = journey;
     this.config = config;
   }
   
-  // In a real implementation, this would actually create a video
   async generateVideo(): Promise<Blob> {
-    console.log('Generating video for journey:', this.journey.name);
-    console.log('Video config:', this.config);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Could not get canvas context');
     
-    // Simulate video generation delay
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    canvas.width = this.config.width;
+    canvas.height = this.config.height;
     
-    // This would normally return a real video blob
-    // For demo purposes, we're returning an empty blob
-    return new Blob([], { type: 'video/mp4' });
+    const mediaStream = canvas.captureStream(this.config.fps);
+    const mediaRecorder = new MediaRecorder(mediaStream, {
+      mimeType: 'video/webm;codecs=vp9'
+    });
+    
+    const chunks: Blob[] = [];
+    
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        chunks.push(event.data);
+      }
+    };
+    
+    return new Promise((resolve) => {
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        resolve(blob);
+      };
+      
+      mediaRecorder.start();
+      
+      // Draw each location's sequence
+      this.animateJourney(ctx, mediaRecorder);
+    });
   }
   
-  // Create a download link for the video
+  private async animateJourney(ctx: CanvasRenderingContext2D, mediaRecorder: MediaRecorder) {
+    const totalDuration = this.journey.locations.length * this.config.duration * 1000;
+    const startTime = Date.now();
+    
+    const animate = async () => {
+      const currentTime = Date.now() - startTime;
+      const progress = currentTime / totalDuration;
+      
+      if (progress >= 1) {
+        mediaRecorder.stop();
+        return;
+      }
+      
+      // Calculate current location index
+      const locationIndex = Math.floor(progress * this.journey.locations.length);
+      const location = this.journey.locations[locationIndex];
+      
+      // Clear canvas
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, this.config.width, this.config.height);
+      
+      // Draw current location's photo
+      if (location.photos.length > 0) {
+        const photoIndex = Math.floor((currentTime % (this.config.duration * 1000)) / 1000 * location.photos.length / this.config.duration);
+        const photo = location.photos[photoIndex];
+        
+        await this.drawPhoto(ctx, photo.url);
+      }
+      
+      requestAnimationFrame(animate);
+    };
+    
+    animate();
+  }
+  
+  private async drawPhoto(ctx: CanvasRenderingContext2D, url: string): Promise<void> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const scale = Math.max(this.config.width / img.width, this.config.height / img.height);
+        const width = img.width * scale;
+        const height = img.height * scale;
+        const x = (this.config.width - width) / 2;
+        const y = (this.config.height - height) / 2;
+        
+        ctx.drawImage(img, x, y, width, height);
+        resolve();
+      };
+      img.src = url;
+    });
+  }
+  
   static createDownloadLink(blob: Blob, filename: string): string {
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    
-    return url;
-  }
-  
-  // Calculate estimated video size based on duration and quality
-  static estimateVideoSize(config: VideoConfig): number {
-    // Very rough estimate based on 1080p quality at 30fps
-    // Real calculation would depend on encoding, compression, etc.
-    const bitrate = 5000000; // 5 Mbps
-    const bytes = (bitrate / 8) * config.duration;
-    
-    return bytes / (1024 * 1024); // Return size in MB
+    return URL.createObjectURL(blob);
   }
 }

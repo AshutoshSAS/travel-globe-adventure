@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -24,6 +23,7 @@ const VideoControls: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(80);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -104,12 +104,37 @@ const VideoControls: React.FC = () => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
   
-  const handleDownload = () => {
-    // In a real implementation, this would download the actual video file
+  const handleDownload = async () => {
+    if (!currentJourney) return;
+    
     toast({
-      title: 'Downloading video',
-      description: 'Your travel journey video is being downloaded.'
+      title: 'Generating video',
+      description: 'Please wait while we create your journey video...'
     });
+    
+    try {
+      const videoService = new VideoService(currentJourney);
+      const videoBlob = await videoService.generateVideo();
+      const url = VideoService.createDownloadLink(videoBlob, 'journey.webm');
+      
+      setVideoUrl(url);
+      
+      if (videoRef.current) {
+        videoRef.current.src = url;
+      }
+      
+      toast({
+        title: 'Video ready',
+        description: 'Your journey video has been created successfully!'
+      });
+    } catch (error) {
+      console.error('Error generating video:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to generate video. Please try again.',
+        variant: 'destructive'
+      });
+    }
   };
   
   const toggleFullscreen = () => {
@@ -146,35 +171,28 @@ const VideoControls: React.FC = () => {
         ref={containerRef}
         className="relative bg-black rounded-lg overflow-hidden shadow-lg"
       >
-        {/* Video element (would be a real video in production) */}
         <video
           ref={videoRef}
           className="w-full aspect-video"
-          poster="/placeholder.svg"
           controls={false}
           preload="metadata"
+          src={videoUrl || undefined}
         >
-          {/* This would be a real video source in production */}
-          <source src="https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4" type="video/mp4" />
           Your browser does not support the video tag.
         </video>
         
-        {/* Preview message overlay */}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white p-6 text-center">
-          <div className="max-w-md space-y-3">
-            <h3 className="text-xl font-medium">Your Journey Video</h3>
-            <p>
-              Your personalized travel video has been created, featuring all your custom photos and destinations.
-            </p>
-            <p className="text-sm text-white/70">
-              In a production environment, this would be a real video of your journey with all your uploaded photos.
-            </p>
+        {!videoUrl && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white p-6 text-center">
+            <div className="max-w-md space-y-3">
+              <h3 className="text-xl font-medium">Generate Your Journey Video</h3>
+              <p>
+                Click the generate button below to create a video of your journey with all your photos and transitions.
+              </p>
+            </div>
           </div>
-        </div>
+        )}
         
-        {/* Controls overlay */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity">
-          {/* Progress bar */}
           <div className="mb-4">
             <Slider
               value={[progress]}
@@ -258,14 +276,23 @@ const VideoControls: React.FC = () => {
       </div>
       
       <div className="flex justify-between">
-        <Button variant="outline" onClick={handleBackToJourney}>
+        <Button variant="outline" onClick={() => setCurrentStage(TravelStage.VISUALIZATION)}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Back to Journey
         </Button>
         
-        <Button onClick={handleDownload}>
-          <Download className="h-4 w-4 mr-2" />
-          Download Video
+        <Button onClick={handleDownload} disabled={isGeneratingVideo}>
+          {videoUrl ? (
+            <>
+              <Download className="h-4 w-4 mr-2" />
+              Download Video
+            </>
+          ) : (
+            <>
+              <Video className="h-4 w-4 mr-2" />
+              Generate Video
+            </>
+          )}
         </Button>
       </div>
     </div>
