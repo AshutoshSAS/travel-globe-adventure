@@ -93,19 +93,14 @@ const LocationInput: React.FC = () => {
         alt: `Photo of ${result.place_name}`
       }));
       
-      const locationId = uuidv4();
-      
-      addLocation({
-        id: locationId,
+      const newLocation: Omit<Location, 'id'> = {
         name: result.place_name,
         coordinates: result.center,
-        photos
-      });
+        photos,
+        userPhotos: [] // Initialize empty userPhotos array
+      };
       
-      setUploadedPhotos(prev => ({
-        ...prev,
-        [locationId]: []
-      }));
+      addLocation(newLocation);
       
       setSearchQuery('');
       setSearchResults([]);
@@ -197,9 +192,7 @@ const LocationInput: React.FC = () => {
       
       updatedLocation.photos = [...updatedLocation.photos, ...newPhotos];
       
-      const updatedLocations = [...locations];
-      updatedLocations[locationIndex] = updatedLocation;
-      
+      // Remove the location and add it back with updated photos
       removeLocation(selectedLocationForUpload);
       addLocation(updatedLocation);
       

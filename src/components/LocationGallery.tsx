@@ -26,13 +26,22 @@ const LocationGallery: React.FC<LocationGalleryProps> = ({ location, isActive })
   }, [isActive, location.photos.length]);
   
   // Filter photos to prioritize user uploaded ones
-  const prioritizedPhotos = [
-    ...location.photos.filter(photo => photo.isUserUploaded),
-    ...location.photos.filter(photo => !photo.isUserUploaded)
-  ];
+  const userUploadedPhotos = location.photos.filter(photo => photo.isUserUploaded);
+  const systemPhotos = location.photos.filter(photo => !photo.isUserUploaded);
+  
+  // Prioritize user uploaded photos
+  const prioritizedPhotos = [...userUploadedPhotos, ...systemPhotos];
+  
+  if (prioritizedPhotos.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64 bg-muted/30 rounded-lg">
+        <p className="text-muted-foreground">No photos available for this location</p>
+      </div>
+    );
+  }
   
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-end md:space-x-4">
         <div>
           <h2 className="text-xl font-medium">{location.name}</h2>
@@ -55,12 +64,12 @@ const LocationGallery: React.FC<LocationGalleryProps> = ({ location, isActive })
           )}
         </div>
         
-        <div className="hidden md:flex md:col-span-2 space-x-3">
-          {prioritizedPhotos.slice(0, 3).map((photo, index) => (
+        <div className="hidden md:grid md:col-span-2 grid-cols-2 gap-3">
+          {prioritizedPhotos.slice(0, 4).map((photo, index) => (
             index !== currentPhotoIndex && (
               <div 
                 key={photo.id}
-                className="aspect-[4/3] flex-1 overflow-hidden rounded-lg bg-muted/30"
+                className="aspect-[4/3] overflow-hidden rounded-lg bg-muted/30 cursor-pointer"
               >
                 <img
                   src={photo.url}

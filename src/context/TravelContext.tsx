@@ -76,6 +76,7 @@ export const TravelProvider: React.FC<TravelProviderProps> = ({ children }) => {
     const newLocation: Location = {
       ...location,
       id: uuidv4(),
+      photos: location.photos || [], // Ensure photos exist
     };
     
     setLocations(prev => [...prev, newLocation]);
