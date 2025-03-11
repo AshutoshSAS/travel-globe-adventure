@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -27,6 +26,7 @@ const VideoControls: React.FC = () => {
   const [volume, setVolume] = useState(80);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -108,7 +108,26 @@ const VideoControls: React.FC = () => {
   };
   
   const handleDownload = async () => {
-    if (!currentJourney) return;
+    if (!currentJourney) {
+      toast({
+        title: 'No journey available',
+        description: 'Please create a journey first before generating a video.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    if (videoUrl) {
+      const a = document.createElement('a');
+      a.href = videoUrl;
+      a.download = `journey-${Date.now()}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+    
+    setIsGenerating(true);
     
     toast({
       title: 'Generating video',
@@ -116,14 +135,27 @@ const VideoControls: React.FC = () => {
     });
     
     try {
-      const videoService = new VideoService(currentJourney);
-      const videoBlob = await videoService.generateVideo();
-      const url = VideoService.createDownloadLink(videoBlob, 'journey.webm');
+      if (currentJourney.locations.length === 0 || 
+          currentJourney.locations.every(loc => !loc.photos || loc.photos.length === 0)) {
+        throw new Error('No photos available to create video');
+      }
       
+      const videoService = new VideoService(currentJourney);
+      console.log('Starting video generation...');
+      
+      const videoBlob = await videoService.generateVideo();
+      console.log('Video generation complete, blob size:', videoBlob.size);
+      
+      if (!videoBlob || videoBlob.size === 0) {
+        throw new Error('Generated video is empty');
+      }
+      
+      const url = VideoService.createDownloadLink(videoBlob, 'journey.webm');
       setVideoUrl(url);
       
       if (videoRef.current) {
         videoRef.current.src = url;
+        videoRef.current.load();
       }
       
       toast({
@@ -134,9 +166,11 @@ const VideoControls: React.FC = () => {
       console.error('Error generating video:', error);
       toast({
         title: 'Error',
-        description: 'Failed to generate video. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to generate video. Please try again.',
         variant: 'destructive'
       });
+    } finally {
+      setIsGenerating(false);
     }
   };
   
@@ -284,7 +318,10 @@ const VideoControls: React.FC = () => {
           Back to Journey
         </Button>
         
-        <Button onClick={handleDownload} disabled={isGeneratingVideo}>
+        <Button 
+          onClick={handleDownload} 
+          disabled={isGenerating || isGeneratingVideo}
+        >
           {videoUrl ? (
             <>
               <Download className="h-4 w-4 mr-2" />
@@ -293,7 +330,7 @@ const VideoControls: React.FC = () => {
           ) : (
             <>
               <Film className="h-4 w-4 mr-2" />
-              Generate Video
+              {isGenerating ? 'Generating...' : 'Generate Video'}
             </>
           )}
         </Button>
