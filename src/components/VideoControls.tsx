@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -9,14 +10,16 @@ import {
   Volume2, 
   VolumeX,
   Maximize,
-  Minimize
+  Minimize,
+  Film
 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { useTravelContext } from '../context/TravelContext';
 import { TravelStage } from '../types';
+import { VideoService } from '../utils/videoService';
 
 const VideoControls: React.FC = () => {
-  const { currentJourney, setCurrentStage } = useTravelContext();
+  const { currentJourney, setCurrentStage, isGeneratingVideo } = useTravelContext();
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -289,7 +292,7 @@ const VideoControls: React.FC = () => {
             </>
           ) : (
             <>
-              <Video className="h-4 w-4 mr-2" />
+              <Film className="h-4 w-4 mr-2" />
               Generate Video
             </>
           )}
