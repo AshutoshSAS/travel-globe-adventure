@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Location, Photo, MapboxGeocodeResult } from '../types';
 import { useTravelContext } from '../context/TravelContext';
@@ -19,7 +18,8 @@ import {
   ArrowUp, 
   ArrowDown, 
   Plane,
-  LoaderCircle
+  LoaderCircle,
+  Image
 } from 'lucide-react';
 
 const LocationInput: React.FC = () => {
@@ -38,6 +38,9 @@ const LocationInput: React.FC = () => {
   const [searchResults, setSearchResults] = useState<MapboxGeocodeResult[]>([]);
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [isCreatingJourney, setIsCreatingJourney] = useState<boolean>(false);
+  const [selectedLocationForUpload, setSelectedLocationForUpload] = useState<string | null>(null);
+  const [uploadedPhotos, setUploadedPhotos] = useState<{[locationId: string]: Photo[]}>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<number | null>(null);
   const [mapboxTokenInput, setMapboxTokenInput] = useState<string>('');
   
@@ -82,7 +85,6 @@ const LocationInput: React.FC = () => {
   
   const handleLocationSelect = async (result: MapboxGeocodeResult) => {
     try {
-      // Fetch photos for this location
       const photoUrls = await getPlacePhotos(result.center, result.place_name);
       
       const photos: Photo[] = photoUrls.map(url => ({
@@ -91,14 +93,20 @@ const LocationInput: React.FC = () => {
         alt: `Photo of ${result.place_name}`
       }));
       
-      // Add new location
+      const locationId = uuidv4();
+      
       addLocation({
+        id: locationId,
         name: result.place_name,
         coordinates: result.center,
         photos
       });
       
-      // Clear search
+      setUploadedPhotos(prev => ({
+        ...prev,
+        [locationId]: []
+      }));
+      
       setSearchQuery('');
       setSearchResults([]);
       
@@ -158,6 +166,90 @@ const LocationInput: React.FC = () => {
     });
   };
   
+  const handlePhotoUploadClick = (locationId: string) => {
+    setSelectedLocationForUpload(locationId);
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  
+  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || !selectedLocationForUpload) return;
+    
+    const newPhotos: Photo[] = [];
+    
+    Array.from(files).forEach(file => {
+      const photoUrl = URL.createObjectURL(file);
+      const photo: Photo = {
+        id: uuidv4(),
+        url: photoUrl,
+        alt: `User uploaded photo for ${locations.find(loc => loc.id === selectedLocationForUpload)?.name || 'location'}`,
+        isUserUploaded: true
+      };
+      
+      newPhotos.push(photo);
+    });
+    
+    const locationIndex = locations.findIndex(loc => loc.id === selectedLocationForUpload);
+    if (locationIndex !== -1) {
+      const updatedLocation = { ...locations[locationIndex] };
+      
+      updatedLocation.photos = [...updatedLocation.photos, ...newPhotos];
+      
+      const updatedLocations = [...locations];
+      updatedLocations[locationIndex] = updatedLocation;
+      
+      removeLocation(selectedLocationForUpload);
+      addLocation(updatedLocation);
+      
+      setUploadedPhotos(prev => ({
+        ...prev,
+        [selectedLocationForUpload]: [...(prev[selectedLocationForUpload] || []), ...newPhotos]
+      }));
+      
+      toast({
+        title: 'Photos uploaded',
+        description: `${newPhotos.length} photo${newPhotos.length === 1 ? '' : 's'} added to ${updatedLocation.name}.`,
+      });
+    }
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    
+    setSelectedLocationForUpload(null);
+  };
+  
+  const handleRemovePhoto = (locationId: string, photoId: string) => {
+    const locationIndex = locations.findIndex(loc => loc.id === locationId);
+    if (locationIndex === -1) return;
+    
+    const location = locations[locationIndex];
+    
+    const updatedPhotos = location.photos.filter(photo => photo.id !== photoId);
+    
+    const updatedLocation = {
+      ...location,
+      photos: updatedPhotos
+    };
+    
+    removeLocation(locationId);
+    addLocation(updatedLocation);
+    
+    if (uploadedPhotos[locationId]) {
+      setUploadedPhotos(prev => ({
+        ...prev,
+        [locationId]: prev[locationId].filter(photo => photo.id !== photoId)
+      }));
+    }
+    
+    toast({
+      title: 'Photo removed',
+      description: `Photo removed from ${location.name}.`,
+    });
+  };
+  
   return (
     <div className="animate-fade-in space-y-6 max-w-xl mx-auto p-6">
       <div className="text-center space-y-3">
@@ -166,6 +258,15 @@ const LocationInput: React.FC = () => {
           Add locations to create your personalized travel journey
         </p>
       </div>
+      
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="image/*"
+        multiple
+        onChange={handlePhotoUpload}
+      />
       
       {!mapboxToken ? (
         <Card className="animate-slide-up">
@@ -262,42 +363,78 @@ const LocationInput: React.FC = () => {
                 {locations.map((location, index) => (
                   <div 
                     key={location.id}
-                    className="flex items-center space-x-2 p-3 bg-background border border-input rounded-md animate-scale"
+                    className="flex flex-col p-3 bg-background border border-input rounded-md animate-scale"
                   >
-                    <div className="flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary">
-                      {index + 1}
+                    <div className="flex items-center space-x-2">
+                      <div className="flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{location.name}</p>
+                      </div>
+                      <div className="flex space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handlePhotoUploadClick(location.id)}
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          title="Upload photos"
+                        >
+                          <Image className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleMoveLocation(index, 'up')}
+                          disabled={index === 0}
+                          className="h-8 w-8"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleMoveLocation(index, 'down')}
+                          disabled={index === locations.length - 1}
+                          className="h-8 w-8"
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeLocation(location.id)}
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{location.name}</p>
-                    </div>
-                    <div className="flex space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleMoveLocation(index, 'up')}
-                        disabled={index === 0}
-                        className="h-8 w-8"
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleMoveLocation(index, 'down')}
-                        disabled={index === locations.length - 1}
-                        className="h-8 w-8"
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeLocation(location.id)}
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    
+                    {location.photos.filter(p => p.isUserUploaded).length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs text-muted-foreground mb-2">Your photos:</p>
+                        <div className="grid grid-cols-4 gap-2">
+                          {location.photos
+                            .filter(photo => photo.isUserUploaded)
+                            .map(photo => (
+                              <div key={photo.id} className="relative aspect-square rounded-md overflow-hidden group">
+                                <img 
+                                  src={photo.url} 
+                                  alt={photo.alt}
+                                  className="object-cover w-full h-full"
+                                />
+                                <button
+                                  onClick={() => handleRemovePhoto(location.id, photo.id)}
+                                  className="absolute top-1 right-1 bg-black/50 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <X className="h-3 w-3 text-white" />
+                                </button>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

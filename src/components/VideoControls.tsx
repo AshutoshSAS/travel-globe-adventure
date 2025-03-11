@@ -159,6 +159,19 @@ const VideoControls: React.FC = () => {
           Your browser does not support the video tag.
         </video>
         
+        {/* Preview message overlay */}
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white p-6 text-center">
+          <div className="max-w-md space-y-3">
+            <h3 className="text-xl font-medium">Your Journey Video</h3>
+            <p>
+              Your personalized travel video has been created, featuring all your custom photos and destinations.
+            </p>
+            <p className="text-sm text-white/70">
+              In a production environment, this would be a real video of your journey with all your uploaded photos.
+            </p>
+          </div>
+        </div>
+        
         {/* Controls overlay */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity">
           {/* Progress bar */}

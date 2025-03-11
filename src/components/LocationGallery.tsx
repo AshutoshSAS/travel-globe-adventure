@@ -25,6 +25,12 @@ const LocationGallery: React.FC<LocationGalleryProps> = ({ location, isActive })
     return () => clearInterval(interval);
   }, [isActive, location.photos.length]);
   
+  // Filter photos to prioritize user uploaded ones
+  const prioritizedPhotos = [
+    ...location.photos.filter(photo => photo.isUserUploaded),
+    ...location.photos.filter(photo => !photo.isUserUploaded)
+  ];
+  
   return (
     <div className="space-y-3">
       <div className="flex flex-col md:flex-row md:items-end md:space-x-4">
@@ -39,10 +45,10 @@ const LocationGallery: React.FC<LocationGalleryProps> = ({ location, isActive })
       
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
         <div className="aspect-[4/3] overflow-hidden rounded-lg md:col-span-2 bg-muted/30">
-          {location.photos[currentPhotoIndex] && (
+          {prioritizedPhotos[currentPhotoIndex] && (
             <img
-              src={location.photos[currentPhotoIndex].url}
-              alt={location.photos[currentPhotoIndex].alt}
+              src={prioritizedPhotos[currentPhotoIndex].url}
+              alt={prioritizedPhotos[currentPhotoIndex].alt}
               className="w-full h-full object-cover transition-opacity duration-500"
               loading="lazy"
             />
@@ -50,7 +56,7 @@ const LocationGallery: React.FC<LocationGalleryProps> = ({ location, isActive })
         </div>
         
         <div className="hidden md:flex md:col-span-2 space-x-3">
-          {location.photos.slice(0, 3).map((photo, index) => (
+          {prioritizedPhotos.slice(0, 3).map((photo, index) => (
             index !== currentPhotoIndex && (
               <div 
                 key={photo.id}
@@ -71,7 +77,7 @@ const LocationGallery: React.FC<LocationGalleryProps> = ({ location, isActive })
       
       {/* Mobile photo indicators */}
       <div className="flex justify-center space-x-1 md:hidden">
-        {location.photos.map((_, index) => (
+        {prioritizedPhotos.map((_, index) => (
           <button
             key={index}
             className={`h-1.5 rounded-full transition-all ${
